@@ -10,9 +10,9 @@ const event = (id, actor, date, time = '') => ({
 test('month grid starts on Monday and includes every day in leap February', () => {
   const cells = calendar.monthCells('2024-02');
   assert.equal(cells[0].key, '2024-01-29');
-  assert.equal(cells.at(-1).key, '2024-03-03');
+  assert.equal(cells.at(-1).key, '2024-03-10');
   assert.equal(cells.filter(day => day.inMonth).length, 29);
-  assert.equal(cells.length % 7, 0);
+  assert.equal(cells.length, 42);
 });
 
 test('calendar includes all six weeks for a long month', () => {
