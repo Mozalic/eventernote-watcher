@@ -1,7 +1,7 @@
 """将 events_cache 中的活动输出为 iCal (RFC 5545) 日历。"""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from .db import Database
 
@@ -58,8 +58,11 @@ def generate_ics(db: Database, include_past: bool = False) -> str:
         lines.append(f"DTSTAMP:{now}")
         if ev["date"]:
             # 活动只有日期粒度(开演时间在说明里), 输出为全天事件
-            lines.append(f"DTSTART;VALUE=DATE:{ev['date'].replace('-', '')}")
-            lines.append(f"DTEND;VALUE=DATE:{ev['date'].replace('-', '')}")
+            start = date.fromisoformat(ev["date"])
+            # iCal 的 DTEND 不包含在事件内，单日活动应在次日结束。
+            end = start + timedelta(days=1)
+            lines.append(f"DTSTART;VALUE=DATE:{start:%Y%m%d}")
+            lines.append(f"DTEND;VALUE=DATE:{end:%Y%m%d}")
         desc = [f"出演者: {actors}", ev["url"]]
         if ev["open_time"]:
             desc.append(ev["open_time"])
