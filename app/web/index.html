@@ -5,12 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Eventernote Watcher</title>
 <script src="https://unpkg.com/vue@3.4.38/dist/vue.global.prod.js"></script>
-<script src="/static/calendar-view.js?v=20261028-fixed-grid"></script>
+<script src="/static/calendar-view.js?v=20261028-week-view"></script>
 <style>
   :root { --border: #e2e8f0; --muted: #718096; --accent: #4f6ef7; --bg: #f7fafc; }
   * { box-sizing: border-box; }
   body { margin: 0; font-family: system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; background: var(--bg); color: #2d3748; }
   .layout { max-width: 900px; margin: 0 auto; padding: 16px; }
+  .layout:has(.week-grid) { max-width:1440px; }
   header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0 16px; }
   h1 { font-size: 20px; margin: 0; }
   nav { display: flex; gap: 4px; margin-bottom: 16px; background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 4px; }
@@ -81,6 +82,19 @@
   .artist-tag { display:inline-block; max-width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; vertical-align:middle; border:1px solid; border-radius:4px; padding:2px 6px; margin:4px 4px 0 0; font-size:11px; }
   .table-scroll { overflow-x:auto; }
   details.card summary { cursor:pointer; font-size:14px; font-weight:600; }
+  .week-grid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:8px; align-items:stretch; }
+  .week-day { min-width:0; min-height:440px; background:#f7fafc; border:1px solid var(--border); border-radius:8px; padding:8px; }
+  .week-day.is-today { border-color:var(--accent); background:#f5f7ff; }
+  .week-day-header { display:flex; align-items:center; justify-content:space-between; gap:4px; margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid var(--border); }
+  .week-date { font-size:14px; font-weight:600; }
+  .week-date small { display:block; margin-top:3px; font-size:11px; font-weight:400; color:var(--muted); }
+  .week-events { display:flex; flex-direction:column; gap:10px; }
+  .week-event { min-width:0; border:1px solid; border-left-width:3px; border-radius:6px; padding:8px; }
+  .week-event-title { color:inherit; font-weight:600; font-size:12px; line-height:1.65; text-decoration:none; overflow-wrap:anywhere; }
+  .week-event-title:hover { text-decoration:underline; }
+  .week-event-meta { margin:6px 0 0; font-size:11px; line-height:1.6; overflow-wrap:anywhere; color:#4a5568; }
+  .week-event .artist-tag { margin:5px 3px 0 0; padding:1px 4px; font-size:10px; }
+  .week-range { font-size:13px; font-weight:600; }
   @media(max-width:600px) {
     .layout { padding:10px; } header { flex-wrap:wrap; } .calendar-card { padding:10px; }
     .calendar-grid { --calendar-day-height:88px; }
@@ -90,6 +104,9 @@
     .event-preview-title { font-size:10px; }
     .calendar-toolbar { gap:6px; } .calendar-toolbar button.btn { padding:7px 9px; }
     .calendar-toolbar .month-picker { padding:6px; max-width:144px; }
+    .week-grid { grid-template-columns:1fr; }
+    .week-day { min-height:0; }
+    .week-event-title { font-size:13px; }
   }
 </style>
 </head>
@@ -189,6 +206,7 @@
         <span class="grow"></span>
         <div class="view-switch" aria-label="活动视图">
           <button :class="{active:eventView==='calendar'}" :aria-pressed="eventView==='calendar'" @click="eventView='calendar'">月历</button>
+          <button :class="{active:eventView==='week'}" :aria-pressed="eventView==='week'" @click="openWeek">周历</button>
           <button :class="{active:eventView==='list'}" :aria-pressed="eventView==='list'" @click="eventView='list'">列表</button>
         </div>
         <button class="btn ghost" :disabled="eventsLoading" @click="refreshEvents">{{ eventsLoading ? '读取中…' : '刷新活动' }}</button>
@@ -237,6 +255,37 @@
         <p v-if="!eventsLoading && !monthEventCount" class="muted calendar-note">本月暂无符合筛选条件的已抓取活动，可切换月份或点击「最近活动」。</p>
         <p v-else class="muted calendar-note">每格最多显示两个单行标签，+数字表示其余项目。点击日期查看全部；艺人名后的 ×数字表示当天场数。</p>
         <button v-if="undatedEvents.length" class="btn ghost" style="margin-top:10px" @click="selectedDate='undated'">日期未定 · {{ undatedEvents.length }} 场</button>
+      </template>
+      <template v-else-if="eventView==='week'">
+        <div class="row calendar-toolbar">
+          <button class="btn ghost" aria-label="上一周" @click="changeWeek(-1)">‹</button>
+          <input type="date" aria-label="选择周内日期" :value="weekAnchor" @change="pickWeek($event.target.value)">
+          <button class="btn ghost" aria-label="下一周" @click="changeWeek(1)">›</button>
+          <button class="btn ghost" @click="goThisWeek">本周</button>
+          <button v-if="nearestDate" class="btn ghost" @click="pickWeek(nearestDate)">最近活动</button>
+          <span class="grow"></span>
+          <span class="week-range">{{ weekDays[0]?.key }} — {{ weekDays[6]?.key }}</span>
+          <span class="muted">本周 {{ weekEventCount }} 场</span>
+        </div>
+        <div class="week-grid" aria-label="活动周历">
+          <section v-for="day in weekDays" :key="day.key" class="week-day" :class="{'is-today':day.key===today}" :aria-label="day.key + '，' + day.events.length + ' 场活动'">
+            <div class="week-day-header">
+              <time class="week-date" :datetime="day.key">{{ day.key.slice(5).replace('-','/') }}<small>周{{ day.weekday }}{{ day.key===today ? ' · 今天' : '' }}</small></time>
+              <span class="tag off">{{ day.events.length }} 场</span>
+            </div>
+            <p v-if="!day.events.length" class="muted">{{ eventsLoading ? '读取中…' : '暂无活动' }}</p>
+            <div class="week-events">
+              <article v-for="event in day.events" :key="event.event_id" class="week-event" :style="artistStyle(event.actors[0])" :data-event-id="event.event_id">
+                <a class="week-event-title" :href="event.url" target="_blank" rel="noopener noreferrer">{{ event.name }} ↗</a>
+                <p class="week-event-meta">{{ event.open_time || '时间未公布' }}</p>
+                <p class="week-event-meta">会场：{{ event.place || '未提供' }}</p>
+                <span v-for="artist in event.actors" :key="artist.id" class="artist-tag" :style="artistStyle(artist)" :title="artist.name">{{ artist.name }}</span>
+              </article>
+            </div>
+          </section>
+        </div>
+        <p class="muted calendar-note">本周活动全部展开，按开演时间排列。周历随内容增高；月历继续使用固定行高和 +N 省略。</p>
+        <p v-if="undatedEvents.length" class="muted">另有 {{ undatedEvents.length }} 场日期未定活动，可在月历的「日期未定」中查看。</p>
       </template>
       <div v-else class="table-scroll">
       <p class="muted">共 {{ visibleEvents.length }} 场已抓取活动</p>
@@ -412,6 +461,7 @@ createApp({
     const today = ref(EventCalendar.dateKey(new Date()));
     const calendarMonth = ref(today.value.slice(0,7));
     const selectedDate = ref(today.value);
+    const weekAnchor = ref(today.value);
     const mergedEvents = computed(() => EventCalendar.mergeEvents(events.value));
     const artistColors = computed(() => EventCalendar.artistColors(actors.value));
     const artistStyle = artist => artistColors.value.get(String(artist?.id)) || EventCalendar.fallbackArtistColor(artist?.id || 0);
@@ -428,6 +478,19 @@ createApp({
     }));
     const monthEventCount = computed(() => visibleEvents.value.filter(e => EventCalendar.validDate(e.date) && e.date.startsWith(calendarMonth.value)).length);
     const undatedEvents = computed(() => groupedDays.value.get('undated') || []);
+    const weekDays = computed(() => EventCalendar.weekCells(weekAnchor.value).map((day, index) => ({
+      ...day, weekday:['一','二','三','四','五','六','日'][index], events:groupedDays.value.get(day.key) || [],
+    })));
+    const weekEventCount = computed(() => weekDays.value.reduce((sum,day) => sum + day.events.length, 0));
+    const pickWeek = date => {
+      if (!EventCalendar.validDate(date)) return;
+      weekAnchor.value = date;
+      selectedDate.value = date;
+      calendarMonth.value = date.slice(0,7);
+    };
+    const openWeek = () => { pickWeek(EventCalendar.validDate(selectedDate.value) ? selectedDate.value : today.value); eventView.value='week'; };
+    const changeWeek = offset => pickWeek(EventCalendar.shiftDate(weekAnchor.value, offset*7));
+    const goThisWeek = () => { today.value = EventCalendar.dateKey(new Date()); pickWeek(today.value); };
     const selectedEvents = computed(() => groupedDays.value.get(selectedDate.value) || []);
     const nearestDate = computed(() => {
       const dates = [...groupedDays.value.keys()].filter(EventCalendar.validDate).sort();
@@ -637,6 +700,7 @@ createApp({
       eventsLoading, eventsError, refreshEvents, eventView, calendarContent, today, calendarMonth, selectedDate,
       visibleEvents, calendarDays, monthEventCount, undatedEvents, selectedEvents, nearestDate,
       selectDate, pickMonth, changeMonth, goToday, artistStyle,
+      weekAnchor, weekDays, weekEventCount, pickWeek, openWeek, changeWeek, goThisWeek,
     };
   },
 }).mount('#app');

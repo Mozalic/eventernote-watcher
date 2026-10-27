@@ -20,6 +20,16 @@ const EventCalendar = (() => {
       return { key: dateKey(date), day: date.getDate(), inMonth: date.getMonth() === number - 1 };
     });
   };
+  const shiftDate = (key, offset) => {
+    const [year, month, day] = key.split('-').map(Number);
+    return dateKey(new Date(year, month - 1, day + offset));
+  };
+  const weekCells = anchor => {
+    if (!validDate(anchor)) return [];
+    const [year, month, day] = anchor.split('-').map(Number);
+    const offset = (new Date(year, month - 1, day).getDay() + 6) % 7;
+    return Array.from({length:7}, (_, index) => ({key:shiftDate(anchor, index-offset)}));
+  };
   const startTime = event => {
     const text = event.open_time || '';
     const match = text.match(/開演\s*(\d{1,2}):(\d{2})/) || text.match(/開場\s*(\d{1,2}):(\d{2})/);
@@ -78,7 +88,7 @@ const EventCalendar = (() => {
     }
     return colors;
   };
-  return { dateKey, validDate, shiftMonth, monthCells, mergeEvents, filterEvents, eventsByDay, artistColors, fallbackArtistColor };
+  return { dateKey, validDate, shiftMonth, monthCells, shiftDate, weekCells, mergeEvents, filterEvents, eventsByDay, artistColors, fallbackArtistColor };
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = EventCalendar;

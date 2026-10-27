@@ -27,6 +27,20 @@ test('month navigation crosses year boundaries', () => {
   assert.equal(calendar.shiftMonth('2026-01', -1), '2025-12');
 });
 
+test('weeks span Monday through Sunday across year boundaries', () => {
+  const days = calendar.weekCells('2027-01-03');
+  assert.equal(days.length, 7);
+  assert.equal(days[0].key, '2026-12-28');
+  assert.equal(days[6].key, '2027-01-03');
+  assert.equal(calendar.weekCells('2027-01-04')[0].key, '2027-01-04');
+});
+
+test('weekly navigation preserves date-only values around leap days', () => {
+  assert.equal(calendar.shiftDate('2024-02-26', 7), '2024-03-04');
+  assert.equal(calendar.shiftDate('2024-03-04', -7), '2024-02-26');
+  assert.deepEqual(calendar.weekCells('2026-02-30'), []);
+});
+
 test('date-only keys do not shift across UTC boundaries', () => {
   assert.equal(calendar.dateKey(new Date(2026, 9, 27, 0, 15)), '2026-10-27');
   assert.equal(calendar.validDate('2024-02-29'), true);
