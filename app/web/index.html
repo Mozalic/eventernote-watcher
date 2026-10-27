@@ -63,13 +63,14 @@
   .day-number.today { background:var(--accent); color:#fff; font-weight:700; }
   .day-count { color:var(--accent); font-size:10px; white-space:nowrap; }
   .calendar-display-controls { margin:10px 0; }
-  .day-content { display:flex; flex-direction:column; gap:4px; min-width:0; min-height:0; flex:1; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; scrollbar-width:thin; }
-  .calendar-artist { display:flex; flex-shrink:0; align-items:flex-start; gap:3px; border-left:3px solid; border-radius:4px; padding:4px; font-size:11px; font-weight:600; line-height:1.4; }
-  .calendar-artist-name, .event-preview-title { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; overflow-wrap:anywhere; }
+  .day-content { display:flex; flex-direction:column; gap:3px; min-width:0; min-height:0; flex:1; overflow:hidden; }
+  .calendar-artist { display:flex; flex-shrink:0; align-items:center; gap:3px; border-left:3px solid; border-radius:4px; padding:3px 4px; font-size:11px; font-weight:600; line-height:16px; }
+  .calendar-artist-name, .event-preview-title { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .calendar-artist-name { flex:1; min-width:0; }
   .artist-event-count { flex-shrink:0; font-size:9px; font-weight:400; padding-top:1px; }
-  .event-preview { display:block; flex-shrink:0; max-width:100%; border-left:3px solid; border-radius:4px; padding:4px; font-size:11px; line-height:16px; }
+  .event-preview { display:block; flex-shrink:0; max-width:100%; border-left:3px solid; border-radius:4px; padding:3px 4px; font-size:11px; line-height:16px; }
   .event-preview-title { font-size:11px; }
+  .more-items { display:block; flex-shrink:0; color:var(--muted); font-size:10px; line-height:12px; white-space:nowrap; padding-left:4px; }
   .calendar-note { margin:10px 0 0; }
   .day-details { scroll-margin-top:16px; }
   .event-detail { padding:12px 0; border-bottom:1px solid var(--border); }
@@ -77,7 +78,7 @@
   .event-title { color:#334dab; font-weight:600; font-size:14px; text-decoration:none; line-height:1.6; overflow-wrap:anywhere; }
   .event-title:hover { text-decoration:underline; }
   .event-meta { margin:5px 0; font-size:12px; color:#4a5568; line-height:1.6; }
-  .artist-tag { display:inline-block; border:1px solid; border-radius:4px; padding:2px 6px; margin:4px 4px 0 0; font-size:11px; }
+  .artist-tag { display:inline-block; max-width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; vertical-align:middle; border:1px solid; border-radius:4px; padding:2px 6px; margin:4px 4px 0 0; font-size:11px; }
   .table-scroll { overflow-x:auto; }
   details.card summary { cursor:pointer; font-size:14px; font-weight:600; }
   @media(max-width:600px) {
@@ -85,7 +86,7 @@
     .calendar-grid { --calendar-day-height:88px; }
     .calendar-day { padding:4px; gap:3px; }
     .day-count { font-size:9px; } .day-number { width:20px; height:20px; }
-    .calendar-artist, .event-preview { font-size:10px; padding:3px; }
+    .calendar-artist, .event-preview { font-size:10px; line-height:14px; padding:2px 3px; }
     .event-preview-title { font-size:10px; }
     .calendar-toolbar { gap:6px; } .calendar-toolbar button.btn { padding:7px 9px; }
     .calendar-toolbar .month-picker { padding:6px; max-width:144px; }
@@ -211,7 +212,7 @@
             <button :class="{active:calendarContent==='events'}" :aria-pressed="calendarContent==='events'" @click="calendarContent='events'">活动</button>
           </div>
           <span class="grow"></span>
-          <span class="muted">格内滚动查看，点击日期看详情</span>
+          <span class="muted">最多显示 2 项，点击日期查看全部</span>
         </div>
         <div class="calendar-grid" aria-label="活动月历">
           <div v-for="weekday in ['一','二','三','四','五','六','日']" :key="weekday" class="weekday">周{{ weekday }}</div>
@@ -220,20 +221,21 @@
             <span class="day-head"><span class="day-number" :class="{today:day.key===today}">{{ day.day }}</span><span v-if="day.events.length" class="day-count">{{ calendarContent==='actors' ? day.artists.length + ' 人' : day.events.length + ' 场' }}</span></span>
             <span class="day-content">
               <template v-if="calendarContent==='actors'">
-                <span v-for="artist in day.artists" :key="artist.id" class="calendar-artist" :style="artistStyle(artist)" :title="artist.name + ' · ' + artist.eventCount + ' 场活动'">
+                <span v-for="artist in day.artists.slice(0,2)" :key="artist.id" class="calendar-artist" :style="artistStyle(artist)" :title="artist.name + ' · ' + artist.eventCount + ' 场活动'">
                   <span class="calendar-artist-name">{{ artist.name }}</span><span v-if="artist.eventCount>1" class="artist-event-count">×{{ artist.eventCount }}</span>
                 </span>
               </template>
               <template v-else>
-                <span v-for="event in day.events" :key="event.event_id" class="event-preview" :style="artistStyle(event.actors[0])" :title="event.actors.map(a=>a.name).join('、') + '：' + event.name">
+                <span v-for="event in day.events.slice(0,2)" :key="event.event_id" class="event-preview" :style="artistStyle(event.actors[0])" :title="event.actors.map(a=>a.name).join('、') + '：' + event.name">
                   <span class="event-preview-title">{{ event.name }}</span>
                 </span>
               </template>
+              <span v-if="(calendarContent==='actors' ? day.artists.length : day.events.length)>2" class="more-items" :title="'点击日期查看剩余 ' + ((calendarContent==='actors' ? day.artists.length : day.events.length)-2) + ' 项'">+{{ (calendarContent==='actors' ? day.artists.length : day.events.length)-2 }}</span>
             </span>
           </button>
         </div>
         <p v-if="!eventsLoading && !monthEventCount" class="muted calendar-note">本月暂无符合筛选条件的已抓取活动，可切换月份或点击「最近活动」。</p>
-        <p v-else class="muted calendar-note">艺人模式合并同一天的重复艺人，×数字表示当天场数。活动模式按开演时间排列，完整内容可在格内滚动查看。</p>
+        <p v-else class="muted calendar-note">每格最多显示两个单行标签，+数字表示其余项目。点击日期查看全部；艺人名后的 ×数字表示当天场数。</p>
         <button v-if="undatedEvents.length" class="btn ghost" style="margin-top:10px" @click="selectedDate='undated'">日期未定 · {{ undatedEvents.length }} 场</button>
       </template>
       <div v-else class="table-scroll">
