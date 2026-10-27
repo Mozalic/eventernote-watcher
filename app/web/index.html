@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Eventernote Watcher</title>
 <script src="https://unpkg.com/vue@3.4.38/dist/vue.global.prod.js"></script>
-<script src="/static/calendar-view.js?v=20261028-artists"></script>
+<script src="/static/calendar-view.js?v=20261028-fixed-grid"></script>
 <style>
   :root { --border: #e2e8f0; --muted: #718096; --accent: #4f6ef7; --bg: #f7fafc; }
   * { box-sizing: border-box; }
@@ -51,24 +51,27 @@
   .view-switch button.active { background:#fff; color:var(--accent); box-shadow:0 1px 4px #0001; }
   .calendar-toolbar { margin:16px 0 12px; }
   .month-picker { font-weight:600; color:#2d3748; max-width:170px; }
-  .calendar-grid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+  .calendar-grid { --calendar-day-height:104px; display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); grid-template-rows:28px repeat(6,var(--calendar-day-height)); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:8px; overflow:hidden; }
   .weekday { text-align:center; background:#f7fafc; padding:7px 0; color:var(--muted); font-size:12px; }
-  .calendar-day { min-width:0; min-height:90px; padding:7px; border:0; background:#fff; text-align:left; color:#2d3748; cursor:pointer; font:inherit; display:flex; flex-direction:column; gap:4px; }
+  .calendar-day { min-width:0; min-height:0; height:100%; overflow:hidden; padding:6px; border:0; background:#fff; text-align:left; color:#2d3748; cursor:pointer; font:inherit; display:flex; flex-direction:column; gap:4px; }
   .calendar-day:hover { background:#f5f7ff; }
   .calendar-day:focus-visible { outline:2px solid var(--accent); outline-offset:-3px; }
   .calendar-day.outside { background:#f7fafc; color:#a0aec0; }
   .calendar-day.selected { background:#edf2ff; box-shadow:inset 0 0 0 2px var(--accent); }
-  .day-head { display:flex; align-items:center; justify-content:space-between; gap:2px; font-size:12px; }
+  .day-head { display:flex; flex-shrink:0; align-items:center; justify-content:space-between; gap:2px; font-size:12px; }
   .day-number { display:inline-flex; align-items:center; justify-content:center; width:23px; height:23px; border-radius:50%; }
   .day-number.today { background:var(--accent); color:#fff; font-weight:700; }
   .day-count { color:var(--accent); font-size:10px; white-space:nowrap; }
-  .event-preview { display:flex; flex-direction:column; gap:3px; max-width:100%; border-left:3px solid; border-radius:4px; padding:4px; font-size:11px; line-height:16px; }
-  .preview-artists { display:flex; flex-direction:column; gap:2px; min-width:0; }
-  .preview-artist { display:block; padding:1px 3px; border-radius:3px; font-weight:600; line-height:1.4; overflow-wrap:anywhere; }
-  .event-preview-title { display:block; color:#4a5568; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:10px; }
-  .more-events { color:var(--muted); font-size:10px; padding-left:4px; }
+  .calendar-display-controls { margin:10px 0; }
+  .day-content { display:flex; flex-direction:column; gap:4px; min-width:0; min-height:0; flex:1; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; scrollbar-width:thin; }
+  .calendar-artist { display:flex; flex-shrink:0; align-items:flex-start; gap:3px; border-left:3px solid; border-radius:4px; padding:4px; font-size:11px; font-weight:600; line-height:1.4; }
+  .calendar-artist-name, .event-preview-title { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; overflow-wrap:anywhere; }
+  .calendar-artist-name { flex:1; min-width:0; }
+  .artist-event-count { flex-shrink:0; font-size:9px; font-weight:400; padding-top:1px; }
+  .event-preview { display:block; flex-shrink:0; max-width:100%; border-left:3px solid; border-radius:4px; padding:4px; font-size:11px; line-height:16px; }
+  .event-preview-title { font-size:11px; }
   .calendar-note { margin:10px 0 0; }
-  .day-details { margin-top:16px; border-top:1px solid var(--border); padding-top:14px; }
+  .day-details { scroll-margin-top:16px; }
   .event-detail { padding:12px 0; border-bottom:1px solid var(--border); }
   .event-detail:last-child { border-bottom:0; padding-bottom:0; }
   .event-title { color:#334dab; font-weight:600; font-size:14px; text-decoration:none; line-height:1.6; overflow-wrap:anywhere; }
@@ -79,9 +82,11 @@
   details.card summary { cursor:pointer; font-size:14px; font-weight:600; }
   @media(max-width:600px) {
     .layout { padding:10px; } header { flex-wrap:wrap; } .calendar-card { padding:10px; }
-    .calendar-day { min-height:79px; padding:4px; gap:3px; }
+    .calendar-grid { --calendar-day-height:88px; }
+    .calendar-day { padding:4px; gap:3px; }
     .day-count { font-size:9px; } .day-number { width:20px; height:20px; }
-    .event-preview { font-size:10px; padding:3px; } .preview-artist { padding:1px 2px; } .more-events { padding-left:0; }
+    .calendar-artist, .event-preview { font-size:10px; padding:3px; }
+    .event-preview-title { font-size:10px; }
     .calendar-toolbar { gap:6px; } .calendar-toolbar button.btn { padding:7px 9px; }
     .calendar-toolbar .month-picker { padding:6px; max-width:144px; }
   }
@@ -199,30 +204,37 @@
           <span class="grow"></span>
           <span class="muted">本月 {{ monthEventCount }} 场 · 共 {{ visibleEvents.length }} 场已抓取活动</span>
         </div>
+        <div class="row calendar-display-controls">
+          <span class="muted">日期格显示</span>
+          <div class="view-switch" aria-label="日期格显示内容">
+            <button :class="{active:calendarContent==='actors'}" :aria-pressed="calendarContent==='actors'" @click="calendarContent='actors'">艺人</button>
+            <button :class="{active:calendarContent==='events'}" :aria-pressed="calendarContent==='events'" @click="calendarContent='events'">活动</button>
+          </div>
+          <span class="grow"></span>
+          <span class="muted">格内滚动查看，点击日期看详情</span>
+        </div>
         <div class="calendar-grid" aria-label="活动月历">
           <div v-for="weekday in ['一','二','三','四','五','六','日']" :key="weekday" class="weekday">周{{ weekday }}</div>
           <button v-for="day in calendarDays" :key="day.key" class="calendar-day" :class="{outside:!day.inMonth,selected:selectedDate===day.key}"
-            :aria-label="day.key + '，' + day.events.length + ' 场活动'" :aria-pressed="selectedDate===day.key" :aria-current="day.key===today ? 'date' : undefined" @click="selectDate(day.key)">
-            <span class="day-head"><span class="day-number" :class="{today:day.key===today}">{{ day.day }}</span><span v-if="day.events.length" class="day-count">{{ day.events.length }} 场</span></span>
-            <span v-for="event in day.events.slice(0,2)" :key="event.event_id" class="event-preview" :style="artistStyle(event.actors[0])" :title="event.actors.map(a=>a.name).join('、') + '：' + event.name">
-              <span class="preview-artists"><span v-for="artist in event.actors" :key="artist.id" class="preview-artist" :style="artistStyle(artist)">{{ artist.name }}</span></span>
-              <span class="event-preview-title">{{ event.name }}</span>
+            :aria-label="day.key + '，' + day.artists.length + ' 位艺人，' + day.events.length + ' 场活动'" :aria-pressed="selectedDate===day.key" :aria-current="day.key===today ? 'date' : undefined" @click="selectDate(day.key)">
+            <span class="day-head"><span class="day-number" :class="{today:day.key===today}">{{ day.day }}</span><span v-if="day.events.length" class="day-count">{{ calendarContent==='actors' ? day.artists.length + ' 人' : day.events.length + ' 场' }}</span></span>
+            <span class="day-content">
+              <template v-if="calendarContent==='actors'">
+                <span v-for="artist in day.artists" :key="artist.id" class="calendar-artist" :style="artistStyle(artist)" :title="artist.name + ' · ' + artist.eventCount + ' 场活动'">
+                  <span class="calendar-artist-name">{{ artist.name }}</span><span v-if="artist.eventCount>1" class="artist-event-count">×{{ artist.eventCount }}</span>
+                </span>
+              </template>
+              <template v-else>
+                <span v-for="event in day.events" :key="event.event_id" class="event-preview" :style="artistStyle(event.actors[0])" :title="event.actors.map(a=>a.name).join('、') + '：' + event.name">
+                  <span class="event-preview-title">{{ event.name }}</span>
+                </span>
+              </template>
             </span>
-            <span v-if="day.events.length>2" class="more-events">另 {{ day.events.length-2 }} 场</span>
           </button>
         </div>
         <p v-if="!eventsLoading && !monthEventCount" class="muted calendar-note">本月暂无符合筛选条件的已抓取活动，可切换月份或点击「最近活动」。</p>
-        <p v-else class="muted calendar-note">颜色对应出演艺人，同场多人分别标色。点击日期查看当天全部活动。</p>
+        <p v-else class="muted calendar-note">艺人模式合并同一天的重复艺人，×数字表示当天场数。活动模式按开演时间排列，完整内容可在格内滚动查看。</p>
         <button v-if="undatedEvents.length" class="btn ghost" style="margin-top:10px" @click="selectedDate='undated'">日期未定 · {{ undatedEvents.length }} 场</button>
-        <section id="calendar-day-details" class="day-details" aria-label="所选日期活动">
-          <div class="row"><b style="font-size:15px">{{ selectedDate==='undated' ? '日期未定' : selectedDate }} 的活动</b><span class="tag off">{{ selectedEvents.length }} 场</span></div>
-          <p v-if="!selectedEvents.length" class="muted">{{ eventsLoading ? '正在读取已抓取活动…' : '当天暂无符合筛选条件的已抓取活动。' }}</p>
-          <article class="event-detail" v-for="event in selectedEvents" :key="event.event_id">
-            <a class="event-title" :href="event.url" target="_blank" rel="noopener noreferrer">{{ event.name }} ↗</a>
-            <p class="event-meta">{{ event.open_time || '时间未公布' }}<br>会场：{{ event.place || '未提供' }}</p>
-            <span v-for="artist in event.actors" :key="artist.id" class="artist-tag" :style="artistStyle(artist)">{{ artist.name }}</span>
-          </article>
-        </section>
       </template>
       <div v-else class="table-scroll">
       <p class="muted">共 {{ visibleEvents.length }} 场已抓取活动</p>
@@ -240,6 +252,15 @@
       </table>
       </div>
     </div>
+    <section v-if="eventView==='calendar'" id="calendar-day-details" class="card day-details" aria-label="所选日期活动">
+      <div class="row"><b style="font-size:15px">{{ selectedDate==='undated' ? '日期未定' : selectedDate }} 的活动</b><span class="tag off">{{ selectedEvents.length }} 场</span></div>
+      <p v-if="!selectedEvents.length" class="muted">{{ eventsLoading ? '正在读取已抓取活动…' : '当天暂无符合筛选条件的已抓取活动。' }}</p>
+      <article class="event-detail" v-for="event in selectedEvents" :key="event.event_id">
+        <a class="event-title" :href="event.url" target="_blank" rel="noopener noreferrer">{{ event.name }} ↗</a>
+        <p class="event-meta">{{ event.open_time || '时间未公布' }}<br>会场：{{ event.place || '未提供' }}</p>
+        <span v-for="artist in event.actors" :key="artist.id" class="artist-tag" :style="artistStyle(artist)">{{ artist.name }}</span>
+      </article>
+    </section>
     <details class="card">
       <summary>外部日历订阅</summary>
       <div class="row" style="margin-top:12px">
@@ -385,6 +406,7 @@ createApp({
     const eventsActor = ref(null);
     const futureOnly = ref(false);
     const eventView = ref('calendar');
+    const calendarContent = ref('actors');
     const today = ref(EventCalendar.dateKey(new Date()));
     const calendarMonth = ref(today.value.slice(0,7));
     const selectedDate = ref(today.value);
@@ -393,7 +415,15 @@ createApp({
     const artistStyle = artist => artistColors.value.get(String(artist?.id)) || EventCalendar.fallbackArtistColor(artist?.id || 0);
     const visibleEvents = computed(() => EventCalendar.filterEvents(mergedEvents.value, eventsActor.value, futureOnly.value, today.value));
     const groupedDays = computed(() => EventCalendar.eventsByDay(visibleEvents.value));
-    const calendarDays = computed(() => EventCalendar.monthCells(calendarMonth.value).map(day => ({ ...day, events: groupedDays.value.get(day.key) || [] })));
+    const calendarDays = computed(() => EventCalendar.monthCells(calendarMonth.value).map(day => {
+      const events = groupedDays.value.get(day.key) || [];
+      const artists = new Map();
+      for (const event of events) for (const artist of event.actors) {
+        if (!artists.has(artist.id)) artists.set(artist.id, { ...artist, eventCount:0 });
+        artists.get(artist.id).eventCount++;
+      }
+      return { ...day, events, artists:[...artists.values()] };
+    }));
     const monthEventCount = computed(() => visibleEvents.value.filter(e => EventCalendar.validDate(e.date) && e.date.startsWith(calendarMonth.value)).length);
     const undatedEvents = computed(() => groupedDays.value.get('undated') || []);
     const selectedEvents = computed(() => groupedDays.value.get(selectedDate.value) || []);
@@ -602,7 +632,7 @@ createApp({
       settings, savingSettings, testing, searchKw, searching, searchResults,
       doSearch, addActor, toggleActor, delActor, runNow, saveSettings, testNotify, simulateNotify, channelLabel,
       calUrl, copyCal, exportConfig, importConfig, importing, manualId, manualName, addManual,
-      eventsLoading, eventsError, refreshEvents, eventView, today, calendarMonth, selectedDate,
+      eventsLoading, eventsError, refreshEvents, eventView, calendarContent, today, calendarMonth, selectedDate,
       visibleEvents, calendarDays, monthEventCount, undatedEvents, selectedEvents, nearestDate,
       selectDate, pickMonth, changeMonth, goToday, artistStyle,
     };

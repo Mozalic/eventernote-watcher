@@ -15,8 +15,7 @@ const EventCalendar = (() => {
     const [year, number] = month.split('-').map(Number);
     const first = new Date(year, number - 1, 1);
     const offset = (first.getDay() + 6) % 7;
-    const days = new Date(year, number, 0).getDate();
-    return Array.from({ length: Math.ceil((offset + days) / 7) * 7 }, (_, index) => {
+    return Array.from({ length: 42 }, (_, index) => {
       const date = new Date(year, number - 1, 1 - offset + index);
       return { key: dateKey(date), day: date.getDate(), inMonth: date.getMonth() === number - 1 };
     });
