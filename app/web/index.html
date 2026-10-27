@@ -11,7 +11,6 @@
   * { box-sizing: border-box; }
   body { margin: 0; font-family: system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; background: var(--bg); color: #2d3748; }
   .layout { max-width: 900px; margin: 0 auto; padding: 16px; }
-  .layout:has(.week-grid) { max-width:1440px; }
   header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0 16px; }
   h1 { font-size: 20px; margin: 0; }
   nav { display: flex; gap: 4px; margin-bottom: 16px; background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 4px; }
@@ -89,11 +88,12 @@
   .week-date { font-size:14px; font-weight:600; }
   .week-date small { display:block; margin-top:3px; font-size:11px; font-weight:400; color:var(--muted); }
   .week-events { display:flex; flex-direction:column; gap:10px; }
-  .week-event { min-width:0; border:1px solid; border-left-width:3px; border-radius:6px; padding:8px; }
-  .week-event-title { color:inherit; font-weight:600; font-size:12px; line-height:1.65; text-decoration:none; overflow-wrap:anywhere; }
+  .week-event { display:flex; flex-direction:column; gap:5px; min-width:0; max-height:200px; overflow:hidden; border:1px solid; border-left-width:3px; border-radius:6px; padding:6px; }
+  .week-event-title { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; flex-shrink:0; overflow:hidden; color:inherit; font-weight:600; font-size:12px; line-height:18px; text-decoration:none; overflow-wrap:anywhere; }
   .week-event-title:hover { text-decoration:underline; }
-  .week-event-meta { margin:6px 0 0; font-size:11px; line-height:1.6; overflow-wrap:anywhere; color:#4a5568; }
-  .week-event .artist-tag { margin:5px 3px 0 0; padding:1px 4px; font-size:10px; }
+  .week-event-meta { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; flex-shrink:0; overflow:hidden; margin:0; font-size:11px; line-height:15px; overflow-wrap:anywhere; color:#4a5568; }
+  .week-event-artists { display:flex; flex-wrap:wrap; flex-shrink:0; gap:3px; min-width:0; max-height:39px; overflow:hidden; }
+  .week-event .artist-tag { margin:0; padding:1px 4px; font-size:10px; line-height:14px; }
   .week-range { font-size:13px; font-weight:600; }
   @media(max-width:600px) {
     .layout { padding:10px; } header { flex-wrap:wrap; } .calendar-card { padding:10px; }
@@ -276,15 +276,15 @@
             <p v-if="!day.events.length" class="muted">{{ eventsLoading ? '读取中…' : '暂无活动' }}</p>
             <div class="week-events">
               <article v-for="event in day.events" :key="event.event_id" class="week-event" :style="artistStyle(event.actors[0])" :data-event-id="event.event_id">
-                <a class="week-event-title" :href="event.url" target="_blank" rel="noopener noreferrer">{{ event.name }} ↗</a>
-                <p class="week-event-meta">{{ event.open_time || '时间未公布' }}</p>
-                <p class="week-event-meta">会场：{{ event.place || '未提供' }}</p>
-                <span v-for="artist in event.actors" :key="artist.id" class="artist-tag" :style="artistStyle(artist)" :title="artist.name">{{ artist.name }}</span>
+                <a class="week-event-title" :href="event.url" :title="event.name" target="_blank" rel="noopener noreferrer">{{ event.name }} ↗</a>
+                <p class="week-event-meta" :title="event.open_time || '时间未公布'">{{ event.open_time || '时间未公布' }}</p>
+                <p class="week-event-meta" :title="event.place || '未提供'">会场：{{ event.place || '未提供' }}</p>
+                <div class="week-event-artists"><span v-for="artist in event.actors" :key="artist.id" class="artist-tag" :style="artistStyle(artist)" :title="artist.name">{{ artist.name }}</span></div>
               </article>
             </div>
           </section>
         </div>
-        <p class="muted calendar-note">本周活动全部展开，按开演时间排列。周历随内容增高；月历继续使用固定行高和 +N 省略。</p>
+        <p class="muted calendar-note">本周活动全部列出，按开演时间排列。每张卡片最高 200px，标题最多三行；悬停查看全文，点击标题打开原页面。</p>
         <p v-if="undatedEvents.length" class="muted">另有 {{ undatedEvents.length }} 场日期未定活动，可在月历的「日期未定」中查看。</p>
       </template>
       <div v-else class="table-scroll">
