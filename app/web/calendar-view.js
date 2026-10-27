@@ -56,7 +56,30 @@ const EventCalendar = (() => {
     }
     return days;
   };
-  return { dateKey, validDate, shiftMonth, monthCells, mergeEvents, filterEvents, eventsByDay };
+  const colorFromHue = hue => ({
+    color: `hsl(${hue} 70% 29%)`,
+    backgroundColor: `hsl(${hue} 75% 95%)`,
+    borderColor: `hsl(${hue} 65% 65%)`,
+  });
+  const fallbackArtistColor = id => colorFromHue((Number(id) * 137.507764) % 360);
+  const artistColors = artists => {
+    const palette = [220, 145, 20, 280, 345, 175, 45, 245, 195, 310, 85, 210, 5, 160, 260, 330];
+    const colors = new Map(), used = new Set();
+    // Use the complete watched list so filtering or changing months keeps colors stable.
+    const ids = [...new Set(artists.map(a => String(a.actor_id)))].sort((a,b) => Number(a)-Number(b));
+    for (const id of ids) {
+      let slot = Number(id) % palette.length;
+      if (used.size < palette.length) {
+        while (used.has(slot)) slot = (slot + 1) % palette.length;
+        used.add(slot);
+        colors.set(id, colorFromHue(palette[slot]));
+      } else {
+        colors.set(id, fallbackArtistColor(id));
+      }
+    }
+    return colors;
+  };
+  return { dateKey, validDate, shiftMonth, monthCells, mergeEvents, filterEvents, eventsByDay, artistColors, fallbackArtistColor };
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = EventCalendar;
