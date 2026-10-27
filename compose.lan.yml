@@ -1,0 +1,23 @@
+services:
+  eventernote-watcher:
+    build: .
+    image: eventernote-watcher:lan
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${WEB_PORT:-18080}:8000"
+    volumes:
+      - ./data:/data
+    environment:
+      TZ: ${TZ:-Asia/Hong_Kong}
+      AUTH_PASSWORD: ${AUTH_PASSWORD:-}
+      ICS_TOKEN: ${ICS_TOKEN:-}
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=5).read()"
+      interval: 30s
+      timeout: 10s
+      start_period: 15s
+      retries: 3
