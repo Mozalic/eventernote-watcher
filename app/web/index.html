@@ -10,7 +10,7 @@
   * { box-sizing: border-box; }
   body { margin: 0; font-family: system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; background: var(--bg); color: #2d3748; }
   .layout { max-width: 900px; margin: 0 auto; padding: 16px; }
-  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0 16px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0 16px; flex-wrap: wrap; }
   h1 { font-size: 20px; margin: 0; }
   nav { display: flex; gap: 4px; margin-bottom: 16px; background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 4px; }
   nav button { flex: 1; border: 0; background: transparent; padding: 8px; border-radius: 7px; cursor: pointer; font-size: 14px; color: var(--muted); }
@@ -18,7 +18,7 @@
   .card { background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 12px; }
   .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .grow { flex: 1; }
-  input, select { padding: 8px 10px; border: 1px solid var(--border); border-radius: 7px; font-size: 14px; background: #fff; }
+  input, select { padding: 8px 10px; border: 1px solid var(--border); border-radius: 7px; font-size: 14px; background: #fff; max-width: 100%; }
   input.wide { width: 100%; }
   button.btn { padding: 8px 14px; border: 0; border-radius: 7px; background: var(--accent); color: #fff; cursor: pointer; font-size: 14px; }
   button.btn.ghost { background: #edf2f7; color: #2d3748; }
@@ -45,6 +45,16 @@
   .channel { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
   .channel .head { display: flex; justify-content: space-between; align-items: center; }
   code { background:#edf2f7; padding:1px 5px; border-radius:4px; font-size:12px; }
+  .search-item > div:first-child { min-width: 0; word-break: break-word; }
+  @media (max-width: 640px) {
+    .layout { padding: 10px; }
+    .card { padding: 12px 10px; overflow-x: auto; }
+    nav { padding: 3px; }
+    nav button { padding: 8px 2px; font-size: 13px; }
+    table { font-size: 13px; }
+    th, td { padding: 6px 4px; }
+    .toast { max-width: calc(100vw - 24px); word-break: break-word; }
+  }
 </style>
 </head>
 <body>
@@ -180,6 +190,8 @@
       <input class="wide" v-model="settings.poll_schedule" placeholder="如 01:00, 09:00, 17:00">
       <label class="field">间隔模式（仅当定点时刻留空时生效，单位小时）</label>
       <input type="number" min="1" step="1" v-model.number="settings.poll_interval_hours" style="width:120px">
+      <label class="field">User-Agent（可选，留空用内置默认。站点按 UA 反爬拦截时，粘贴你自己浏览器的 UA 最稳妥；浏览器地址栏输入 navigator.userAgent 回车即可查看）</label>
+      <input class="wide" v-model="settings.user_agent" placeholder="留空则使用内置 Chrome UA">
       <p class="muted" style="margin:8px 0 0">当前模式：<b>{{ settings.poll_schedule ? '定点 (' + settings.poll_schedule + ')' : '间隔 ' + settings.poll_interval_hours + ' 小时' }}</b>，保存后最多 15 分钟内生效。抓取太频繁想减少次数：减少定点时刻的个数，或调大间隔。</p>
     </div>
 
@@ -482,7 +494,7 @@ createApp({
     return {
       tab, toast, status, actors, events, notifications, fetchLogs, logTab, eventsActor, futureOnly,
       settings, savingSettings, testing, searchKw, searching, searchResults,
-      doSearch, addActor, toggleActor, delActor, runNow, saveSettings, testNotify, simulateNotify, channelLabel,
+      doSearch, addActor, toggleActor, delActor, runNow, saveSettings, testNotify, simulateNotify, channelLabel, loadLogs,
       calUrl, copyCal, exportConfig, importConfig, importing, manualId, manualName, addManual,
     };
   },

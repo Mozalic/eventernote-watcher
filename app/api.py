@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from .db import Database
-from .fetcher import search_actors
+from .fetcher import build_headers, search_actors
 from .notifiers import build_all
 from .watcher import Watcher
 from .calendar import generate_ics
@@ -62,7 +62,7 @@ def create_router(db: Database, watcher: Watcher) -> APIRouter:
         if not keyword.strip():
             return {"results": []}
         async with httpx.AsyncClient(
-            headers={"User-Agent": "Mozilla/5.0"}, timeout=30
+            headers=build_headers(db.get_settings()), timeout=30
         ) as client:
             results = await search_actors(client, keyword.strip(), page)
         watched = {a["actor_id"] for a in db.list_actors()}

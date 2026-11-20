@@ -19,8 +19,25 @@ log = logging.getLogger(__name__)
 BASE_URL = "https://www.eventernote.com"
 UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+    "(KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36"
 )
+# 站点在 nginx 层按 UA 封杀了裸 "Mozilla/5.0" 等非浏览器特征(2026-11 起生效),
+# 所有对 eventernote 的请求必须带完整浏览器头, 不得覆盖 User-Agent
+BROWSER_HEADERS = {
+    "User-Agent": UA,
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "ja,en-US;q=0.8,en;q=0.6",
+}
+
+
+def build_headers(settings: dict | None = None) -> dict:
+    """组装抓取请求头。设置页 user_agent 非空时优先用用户粘贴的 UA
+    (站点按 UA 反爬时, 用自己浏览器的 UA 最稳妥), 否则用内置浏览器头。"""
+    headers = dict(BROWSER_HEADERS)
+    ua = str((settings or {}).get("user_agent") or "").strip()
+    if ua:
+        headers["User-Agent"] = ua
+    return headers
 MAX_PAGES = 5  # 单个出演者最多翻页数（按 event_date 降序，未来活动集中在最前）
 
 _DATE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")

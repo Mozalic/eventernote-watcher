@@ -11,6 +11,7 @@ _DEFAULT_SETTINGS = {
     "poll_schedule": "01:00,09:00,17:00",
     "poll_interval_hours": 8,  # 间隔模式的间隔(小时), 仅当 poll_schedule 为空时生效
     "fetch_delay_seconds": [3, 8],  # 出演者之间的随机间隔
+    "user_agent": "",  # 自定义抓取 UA; 留空用 fetcher 内置浏览器头
     "notifiers": {
         "wxpusher": {"enabled": False, "app_token": "", "uid": ""},
         "pushplus": {"enabled": False, "token": ""},
