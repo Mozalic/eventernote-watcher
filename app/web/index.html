@@ -24,6 +24,12 @@
   button.btn.ghost { background: #edf2f7; color: #2d3748; }
   button.btn.danger { background: #e53e3e; }
   button.btn:disabled { opacity: .5; cursor: default; }
+  /* 保存栏: 吸底悬浮, 有未保存更改时橙色警示 */
+  .savebar { position: sticky; bottom: 10px; z-index: 8; background: rgba(247,250,252,.94); backdrop-filter: blur(4px); border: 1px solid var(--border); border-radius: 12px; padding: 8px 10px; }
+  .savebar.dirty { background: rgba(255,250,240,.96); border-color: #f6ad55; box-shadow: 0 6px 18px rgba(221,107,32,.22); }
+  button.btn.dirty { background: #dd6b20; color: #fff; font-weight: 600; animation: breathe 1.5s ease-in-out infinite; }
+  @keyframes breathe { 50% { box-shadow: 0 0 0 6px rgba(221,107,32,.25); } }
+  .navdot { display:inline-block; width:7px; height:7px; border-radius:50%; background:#ed8936; margin-left:6px; vertical-align:2px; }
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
   th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
   th { color: var(--muted); font-weight: 500; }
@@ -73,10 +79,10 @@
   </header>
 
   <nav>
-    <button :class="{active: tab==='actors'}" @click="tab='actors'">出演者</button>
-    <button :class="{active: tab==='events'}" @click="tab='events'">活动</button>
-    <button :class="{active: tab==='settings'}" @click="tab='settings'">设置</button>
-    <button :class="{active: tab==='logs'}" @click="tab='logs'">日志</button>
+    <button :class="{active: tab==='actors'}" @click="selectTab('actors')">出演者</button>
+    <button :class="{active: tab==='events'}" @click="selectTab('events')">活动</button>
+    <button :class="{active: tab==='settings'}" @click="selectTab('settings')">设置<span v-if="settingsDirty" class="navdot"></span></button>
+    <button :class="{active: tab==='logs'}" @click="selectTab('logs')">日志</button>
   </nav>
 
   <!-- 出演者 -->
@@ -237,12 +243,14 @@
       </div>
     </div>
 
-    <div class="row">
-      <button class="btn" @click="saveSettings" :disabled="savingSettings">{{ savingSettings ? '保存中…' : '保存设置' }}</button>
+    <div class="row savebar" :class="{dirty: settingsDirty}">
+      <button class="btn" :class="settingsDirty ? 'dirty' : 'ghost'" @click="saveSettings" :disabled="savingSettings">
+        {{ savingSettings ? '保存中…' : (settingsDirty ? '● 有未保存更改，点击保存' : '保存设置') }}
+      </button>
       <button class="btn ghost" @click="testNotify" :disabled="testing">{{ testing ? '发送中…' : '发送测试推送' }}</button>
       <button class="btn ghost" @click="simulateNotify" :disabled="simulating">{{ simulating ? '发送中…' : '模拟新活动通知' }}</button>
-      <span class="muted">「测试推送」只验证渠道连通；「模拟新活动通知」用真实活动数据走完整通知流程（内容与真实新活动完全一致），适合预览邮件/推送的效果</span>
     </div>
+    <p class="muted" style="margin:8px 0 0">「测试推送」只验证渠道连通；「模拟新活动通知」用真实活动数据走完整通知流程（内容与真实新活动完全一致），适合预览邮件/推送的效果</p>
 
     <div class="card">
       <b>配置备份</b>
@@ -323,6 +331,17 @@ createApp({
     const savingSettings = ref(false);
     const testing = ref(false);
     const simulating = ref(false);
+    // 未保存检测: 加载/保存后快照, 与当前编辑值比较
+    const settingsSnapshot = ref('');
+    const settingsDirty = computed(() =>
+      settingsSnapshot.value !== '' && JSON.stringify(settings) !== settingsSnapshot.value
+    );
+    const snapshotSettings = () => { settingsSnapshot.value = JSON.stringify(settings); };
+    const selectTab = (t) => {
+      if (t !== 'settings' && settingsDirty.value &&
+          !confirm('设置有未保存的更改，确定放弃并离开？')) return;
+      tab.value = t;
+    };
 
     const searchKw = ref('');
     const searching = ref(false);
@@ -410,11 +429,13 @@ createApp({
     const loadSettings = () => api('/settings').then(d => {
       Object.keys(settings).forEach(k => delete settings[k]);
       Object.assign(settings, d);
+      snapshotSettings();
     });
     const saveSettings = async () => {
       savingSettings.value = true;
       try {
         await api('/settings', { method: 'PUT', body: JSON.parse(JSON.stringify(settings)) });
+        snapshotSettings();
         showToast('设置已保存');
       } catch (e) { showToast('保存失败: ' + e.message); }
       finally { savingSettings.value = false; }
@@ -493,6 +514,10 @@ createApp({
     onMounted(async () => {
       await Promise.all([refreshStatus(), refreshActors(), loadSettings()]);
       setInterval(refreshStatus, 15000);
+      // 设置有未保存更改时, 拦截刷新/关闭标签页
+      window.addEventListener('beforeunload', (e) => {
+        if (settingsDirty.value) { e.preventDefault(); e.returnValue = ''; }
+      });
     });
 
     return {
@@ -500,6 +525,7 @@ createApp({
       settings, savingSettings, testing, searchKw, searching, searchResults,
       doSearch, addActor, toggleActor, delActor, runNow, saveSettings, testNotify, simulateNotify, channelLabel, loadLogs,
       calUrl, copyCal, exportConfig, importConfig, importing, manualId, manualName, addManual, fillUA,
+      settingsDirty, selectTab,
     };
   },
 }).mount('#app');
