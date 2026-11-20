@@ -190,8 +190,11 @@
       <input class="wide" v-model="settings.poll_schedule" placeholder="如 01:00, 09:00, 17:00">
       <label class="field">间隔模式（仅当定点时刻留空时生效，单位小时）</label>
       <input type="number" min="1" step="1" v-model.number="settings.poll_interval_hours" style="width:120px">
-      <label class="field">User-Agent（可选，留空用内置默认。站点按 UA 反爬拦截时，粘贴你自己浏览器的 UA 最稳妥；浏览器地址栏输入 navigator.userAgent 回车即可查看）</label>
-      <input class="wide" v-model="settings.user_agent" placeholder="留空则使用内置 Chrome UA">
+      <label class="field">User-Agent（可选，留空用内置默认。站点按 UA 反爬拦截时，用自己浏览器的 UA 最稳妥）</label>
+      <div class="row">
+        <input class="grow" v-model="settings.user_agent" placeholder="留空则使用内置 Chrome UA">
+        <button class="btn ghost" @click="fillUA">填入当前浏览器 UA</button>
+      </div>
       <p class="muted" style="margin:8px 0 0">当前模式：<b>{{ settings.poll_schedule ? '定点 (' + settings.poll_schedule + ')' : '间隔 ' + settings.poll_interval_hours + ' 小时' }}</b>，保存后最多 15 分钟内生效。抓取太频繁想减少次数：减少定点时刻的个数，或调大间隔。</p>
     </div>
 
@@ -438,6 +441,7 @@ createApp({
     };
 
     const channelLabel = (key) => ({ wxpusher: 'WxPusher', pushplus: 'PushPlus', email: '邮件 (SMTP)' }[key] || key);
+    const fillUA = () => { settings.user_agent = navigator.userAgent; showToast('已填入当前浏览器的 UA，记得保存设置'); };
 
     const calUrl = computed(() => status.calendar_url
       ? location.origin + status.calendar_url
@@ -495,7 +499,7 @@ createApp({
       tab, toast, status, actors, events, notifications, fetchLogs, logTab, eventsActor, futureOnly,
       settings, savingSettings, testing, searchKw, searching, searchResults,
       doSearch, addActor, toggleActor, delActor, runNow, saveSettings, testNotify, simulateNotify, channelLabel, loadLogs,
-      calUrl, copyCal, exportConfig, importConfig, importing, manualId, manualName, addManual,
+      calUrl, copyCal, exportConfig, importConfig, importing, manualId, manualName, addManual, fillUA,
     };
   },
 }).mount('#app');
