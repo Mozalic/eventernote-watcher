@@ -61,7 +61,7 @@ def parse_favorites(html: str) -> list[FavoriteActor]:
                 raise FetchError("关注艺人列表包含无法识别的链接，请稍后重试") from exc
             if target.netloc and target.netloc.lower() not in _HOSTS:
                 raise FetchError("关注艺人列表包含无法识别的链接，请稍后重试")
-            match = re.fullmatch(r"/actors/[^/]+/(\d+)/?", target.path)
+            match = re.fullmatch(r"/actors/[^/]+/(\d{1,12})/?", target.path)
             name = link.get_text(" ", strip=True)
             if not match or int(match[1]) <= 0 or not name:
                 raise FetchError("关注艺人列表格式发生变化，暂时无法导入")
