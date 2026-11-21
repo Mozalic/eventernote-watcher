@@ -1,6 +1,8 @@
 {
+  "poll_schedule": "01:00,09:00,17:00",
   "poll_interval_hours": 8,
   "fetch_delay_seconds": [3, 8],
+  "user_agent": "",
   "notifiers": {
     "wxpusher": {"enabled": false, "app_token": "", "uid": ""},
     "pushplus": {"enabled": false, "token": ""},
