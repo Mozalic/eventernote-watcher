@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from .db import Database
-from .fetcher import search_actors, FetchError, UA
+from .fetcher import build_headers, search_actors, FetchError, BROWSER_HEADERS
 from .favorites import fetch_user_favorites, normalize_username, ProfileNotFound
 from .notifiers import build_all
 from .watcher import Watcher
@@ -59,7 +59,8 @@ def create_router(db: Database, watcher: Watcher) -> APIRouter:
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
         try:
-            async with httpx.AsyncClient(headers={"User-Agent": UA}, timeout=30) as client:
+            # 与主抓取链路一致: 带完整浏览器头, 只保留 UA 可被站点后续反爬策略命中
+            async with httpx.AsyncClient(headers=BROWSER_HEADERS, timeout=30) as client:
                 favorites = await fetch_user_favorites(client, username)
         except ProfileNotFound as exc:
             raise HTTPException(404, str(exc)) from exc
@@ -86,7 +87,7 @@ def create_router(db: Database, watcher: Watcher) -> APIRouter:
         if not keyword.strip():
             return {"results": []}
         async with httpx.AsyncClient(
-            headers={"User-Agent": "Mozilla/5.0"}, timeout=30
+            headers=build_headers(db.get_settings()), timeout=30
         ) as client:
             results = await search_actors(client, keyword.strip(), page)
         watched = {a["actor_id"] for a in db.list_actors()}

@@ -6,12 +6,13 @@ import html as html_mod
 import logging
 import random
 import re
+import time
 from datetime import datetime, timedelta
 
 import httpx
 
 from .db import Database
-from .fetcher import fetch_actor_events
+from .fetcher import build_headers, fetch_actor_events
 from .notifiers import build_all
 
 log = logging.getLogger(__name__)
@@ -41,6 +42,7 @@ class Watcher:
         self._running = False
         self._last_run_at: str | None = None
         self._next_run_at: str | None = None
+        self._fail_notified_at: float | None = None  # 上次失败提醒时间, 用于冷却
 
     # ---------- 生命周期 ----------
     async def start(self):
@@ -112,13 +114,14 @@ class Watcher:
         """抓取所有启用的出演者，新活动合并通知。返回摘要。"""
         self._running = True
         summary = {"checked": 0, "failed": 0, "new_events": 0, "notified": False}
+        fails: list[tuple[str, str]] = []  # (出演者名, 错误), 供失败提醒用
         try:
             actors = [a for a in self.db.list_actors() if a["enabled"]]
             self._last_run_at = datetime.now().isoformat(timespec="seconds")
             settings = self.db.get_settings()
             lo, hi = settings.get("fetch_delay_seconds", [3, 8])
             async with httpx.AsyncClient(
-                headers={"User-Agent": "Mozilla/5.0"}, timeout=30, follow_redirects=True
+                headers=build_headers(settings), timeout=30, follow_redirects=True
             ) as client:
                 new_items: list[tuple[dict, list]] = []  # (actor, [Event])
                 for i, actor in enumerate(actors):
@@ -129,6 +132,7 @@ class Watcher:
                         summary["checked"] += 1
                     except Exception as e:
                         summary["failed"] += 1
+                        fails.append((actor["name"], str(e)))
                         self.db.record_fetch(actor["actor_id"], False, str(e))
                         self.db.log_fetch(actor["actor_id"], actor["name"], False, error=str(e))
                         log.warning("fetch %s failed: %s", actor["name"], e)
@@ -145,12 +149,48 @@ class Watcher:
                         # 首次抓取：只建基线
                         self.db.update_actor(actor["actor_id"], baselined=True)
                         log.info("baseline for %s: %d events", actor["name"], len(events))
+            if summary["failed"]:
+                await self._notify_fetch_failure(summary, fails)
+            else:
+                self._fail_notified_at = None  # 全部成功, 重置失败提醒冷却
             if new_items:
                 summary["new_events"] = sum(len(f) for _, f in new_items)
                 summary["notified"] = await self._notify(new_items)
             return summary
         finally:
             self._running = False
+
+    async def _notify_fetch_failure(self, summary: dict, fails: list[tuple[str, str]]) -> None:
+        """抓取失败时邮件提醒(仅邮件渠道)。持续故障期间每 6 小时最多提醒一次, 避免刷屏。"""
+        COOLDOWN = 6 * 3600
+        now = time.time()
+        if self._fail_notified_at and now - self._fail_notified_at < COOLDOWN:
+            return
+        self._fail_notified_at = now
+        total = summary["checked"] + summary["failed"]
+        title = f"Eventernote 抓取失败: {summary['failed']}/{total} 位出演者失败"
+        lines = [f"- {name}: {err[:150]}" for name, err in fails]
+        content = "\n".join(lines)
+        if any("403" in err for _, err in fails):
+            content += (
+                "\n\n提示: 403 一般是站点反爬拦截了请求特征。"
+                "可到设置页更新 User-Agent(粘贴你自己浏览器的 UA)保存后重试。"
+            )
+        notifiers = [
+            n for n in build_all(self.db.get_settings().get("notifiers", {}))
+            if n.name == "email"
+        ]
+        if not notifiers:
+            log.warning("fetch failures occurred but email notifier not enabled/configured")
+            return
+        for n in notifiers:
+            try:
+                await n.send(title, content)
+                self.db.log_notification(None, None, n.name, title, True)
+                log.info("fetch failure alert sent via %s", n.name)
+            except Exception as e:
+                log.error("fetch failure alert via %s failed: %s", n.name, e)
+                self.db.log_notification(None, None, n.name, title, False, str(e))
 
     async def simulate_notify(self) -> dict:
         """用已抓取的真实活动数据走一遍完整通知流程(与真实新活动同一代码路径)。
@@ -208,19 +248,29 @@ class Watcher:
         )
 
         notifiers = build_all(self.db.get_settings().get("notifiers", {}))
+        # 日志按出演者逐条记录, 只反映本次实际推送的内容
+        entries = [
+            (a["actor_id"], f"{a['name']}有 {len(fresh)} 场新活动")
+            for a, fresh in new_items
+        ]
+        if test:
+            entries = [(aid, "[测试] " + t) for aid, t in entries]
         if not notifiers:
             log.warning("new events but no notifier enabled/configured")
-            self.db.log_notification(None, None, "(none)", title, False, "无可用通知渠道")
+            for aid, t in entries:
+                self.db.log_notification(aid, None, "(none)", t, False, "无可用通知渠道")
             return False
         ok_any = False
         for n in notifiers:
             try:
                 await n.send(title, content, html=html)
-                self.db.log_notification(None, None, n.name, title, True)
                 ok_any = True
+                for aid, t in entries:
+                    self.db.log_notification(aid, None, n.name, t, True)
             except Exception as e:
                 log.error("notify via %s failed: %s", n.name, e)
-                self.db.log_notification(None, None, n.name, title, False, str(e))
+                for aid, t in entries:
+                    self.db.log_notification(aid, None, n.name, t, False, str(e))
         return ok_any
 
     @staticmethod

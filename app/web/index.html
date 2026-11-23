@@ -11,7 +11,7 @@
   * { box-sizing: border-box; }
   body { margin: 0; font-family: system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; background: var(--bg); color: #2d3748; }
   .layout { max-width: 900px; margin: 0 auto; padding: 16px; }
-  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0 16px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0 16px; flex-wrap: wrap; }
   h1 { font-size: 20px; margin: 0; }
   nav { display: flex; gap: 4px; margin-bottom: 16px; background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 4px; }
   nav button { flex: 1; border: 0; background: transparent; padding: 8px; border-radius: 7px; cursor: pointer; font-size: 14px; color: var(--muted); }
@@ -19,12 +19,18 @@
   .card { background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 12px; }
   .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .grow { flex: 1; }
-  input, select { padding: 8px 10px; border: 1px solid var(--border); border-radius: 7px; font-size: 14px; background: #fff; }
+  input, select { padding: 8px 10px; border: 1px solid var(--border); border-radius: 7px; font-size: 14px; background: #fff; max-width: 100%; }
   input.wide { width: 100%; }
   button.btn { padding: 8px 14px; border: 0; border-radius: 7px; background: var(--accent); color: #fff; cursor: pointer; font-size: 14px; }
   button.btn.ghost { background: #edf2f7; color: #2d3748; }
   button.btn.danger { background: #e53e3e; }
   button.btn:disabled { opacity: .5; cursor: default; }
+  /* 保存栏: 吸底悬浮, 有未保存更改时橙色警示 */
+  .savebar { position: sticky; bottom: 10px; z-index: 8; background: rgba(247,250,252,.94); backdrop-filter: blur(4px); border: 1px solid var(--border); border-radius: 12px; padding: 8px 10px; }
+  .savebar.dirty { background: rgba(255,250,240,.96); border-color: #f6ad55; box-shadow: 0 6px 18px rgba(221,107,32,.22); }
+  button.btn.dirty { background: #dd6b20; color: #fff; font-weight: 600; animation: breathe 1.5s ease-in-out infinite; }
+  @keyframes breathe { 50% { box-shadow: 0 0 0 6px rgba(221,107,32,.25); } }
+  .navdot { display:inline-block; width:7px; height:7px; border-radius:50%; background:#ed8936; margin-left:6px; vertical-align:2px; }
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
   th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
   th { color: var(--muted); font-weight: 500; }
@@ -46,6 +52,16 @@
   .channel { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
   .channel .head { display: flex; justify-content: space-between; align-items: center; }
   code { background:#edf2f7; padding:1px 5px; border-radius:4px; font-size:12px; }
+  .search-item > div:first-child { min-width: 0; word-break: break-word; }
+  @media (max-width: 640px) {
+    .layout { padding: 10px; }
+    .card { padding: 12px 10px; overflow-x: auto; }
+    nav { padding: 3px; }
+    nav button { padding: 8px 2px; font-size: 13px; }
+    table { font-size: 13px; }
+    th, td { padding: 6px 4px; }
+    .toast { max-width: calc(100vw - 24px); word-break: break-word; }
+  }
   .view-switch { display:flex; gap:3px; padding:3px; background:#edf2f7; border-radius:8px; }
   .view-switch button { border:0; background:transparent; color:#4a5568; border-radius:5px; padding:6px 12px; cursor:pointer; }
   .view-switch button.active { background:#fff; color:var(--accent); box-shadow:0 1px 4px #0001; }
@@ -126,10 +142,10 @@
   </header>
 
   <nav>
-    <button :class="{active: tab==='actors'}" @click="tab='actors'">出演者</button>
-    <button :class="{active: tab==='events'}" @click="tab='events'">活动日历</button>
-    <button :class="{active: tab==='settings'}" @click="tab='settings'">设置</button>
-    <button :class="{active: tab==='logs'}" @click="tab='logs'">日志</button>
+    <button :class="{active: tab==='actors'}" @click="selectTab('actors')">出演者</button>
+    <button :class="{active: tab==='events'}" @click="selectTab('events')">活动日历</button>
+    <button :class="{active: tab==='settings'}" @click="selectTab('settings')">设置<span v-if="settingsDirty" class="navdot"></span></button>
+    <button :class="{active: tab==='logs'}" @click="selectTab('logs')">日志</button>
   </nav>
 
   <!-- 出演者 -->
@@ -346,6 +362,11 @@
       <input class="wide" v-model="settings.poll_schedule" placeholder="如 01:00, 09:00, 17:00">
       <label class="field">间隔模式（仅当定点时刻留空时生效，单位小时）</label>
       <input type="number" min="1" step="1" v-model.number="settings.poll_interval_hours" style="width:120px">
+      <label class="field">User-Agent（可选，留空用内置默认。站点按 UA 反爬拦截时，用自己浏览器的 UA 最稳妥）</label>
+      <div class="row">
+        <input class="grow" v-model="settings.user_agent" placeholder="留空则使用内置 Chrome UA">
+        <button class="btn ghost" @click="fillUA">填入当前浏览器 UA</button>
+      </div>
       <p class="muted" style="margin:8px 0 0">当前模式：<b>{{ settings.poll_schedule ? '定点 (' + settings.poll_schedule + ')' : '间隔 ' + settings.poll_interval_hours + ' 小时' }}</b>，保存后最多 15 分钟内生效。抓取太频繁想减少次数：减少定点时刻的个数，或调大间隔。</p>
     </div>
 
@@ -388,12 +409,14 @@
       </div>
     </div>
 
-    <div class="row">
-      <button class="btn" @click="saveSettings" :disabled="savingSettings">{{ savingSettings ? '保存中…' : '保存设置' }}</button>
+    <div class="row savebar" :class="{dirty: settingsDirty}">
+      <button class="btn" :class="settingsDirty ? 'dirty' : 'ghost'" @click="saveSettings" :disabled="savingSettings">
+        {{ savingSettings ? '保存中…' : (settingsDirty ? '● 有未保存更改，点击保存' : '保存设置') }}
+      </button>
       <button class="btn ghost" @click="testNotify" :disabled="testing">{{ testing ? '发送中…' : '发送测试推送' }}</button>
       <button class="btn ghost" @click="simulateNotify" :disabled="simulating">{{ simulating ? '发送中…' : '模拟新活动通知' }}</button>
-      <span class="muted">「测试推送」只验证渠道连通；「模拟新活动通知」用真实活动数据走完整通知流程（内容与真实新活动完全一致），适合预览邮件/推送的效果</span>
     </div>
+    <p class="muted" style="margin:8px 0 0">「测试推送」只验证渠道连通；「模拟新活动通知」用真实活动数据走完整通知流程（内容与真实新活动完全一致），适合预览邮件/推送的效果</p>
 
     <div class="card">
       <b>配置备份</b>
@@ -528,6 +551,17 @@ createApp({
     const savingSettings = ref(false);
     const testing = ref(false);
     const simulating = ref(false);
+    // 未保存检测: 加载/保存后快照, 与当前编辑值比较
+    const settingsSnapshot = ref('');
+    const settingsDirty = computed(() =>
+      settingsSnapshot.value !== '' && JSON.stringify(settings) !== settingsSnapshot.value
+    );
+    const snapshotSettings = () => { settingsSnapshot.value = JSON.stringify(settings); };
+    const selectTab = (t) => {
+      if (t !== 'settings' && settingsDirty.value &&
+          !confirm('设置有未保存的更改，确定放弃并离开？')) return;
+      tab.value = t;
+    };
 
     const searchKw = ref('');
     const searching = ref(false);
@@ -643,11 +677,13 @@ createApp({
     const loadSettings = () => api('/settings').then(d => {
       Object.keys(settings).forEach(k => delete settings[k]);
       Object.assign(settings, d);
+      snapshotSettings();
     });
     const saveSettings = async () => {
       savingSettings.value = true;
       try {
         await api('/settings', { method: 'PUT', body: JSON.parse(JSON.stringify(settings)) });
+        snapshotSettings();
         showToast('设置已保存');
       } catch (e) { showToast('保存失败: ' + e.message); }
       finally { savingSettings.value = false; }
@@ -674,6 +710,7 @@ createApp({
     };
 
     const channelLabel = (key) => ({ wxpusher: 'WxPusher', pushplus: 'PushPlus', email: '邮件 (SMTP)' }[key] || key);
+    const fillUA = () => { settings.user_agent = navigator.userAgent; showToast('已填入当前浏览器的 UA，记得保存设置'); };
 
     const calUrl = computed(() => status.calendar_url
       ? location.origin + status.calendar_url
@@ -724,13 +761,18 @@ createApp({
     onMounted(async () => {
       await Promise.all([refreshStatus(), refreshActors(), loadSettings(), refreshEvents()]);
       setInterval(refreshStatus, 15000);
+      // 设置有未保存更改时, 拦截刷新/关闭标签页
+      window.addEventListener('beforeunload', (e) => {
+        if (settingsDirty.value) { e.preventDefault(); e.returnValue = ''; }
+      });
     });
 
     return {
       tab, toast, status, actors, events, notifications, fetchLogs, logTab, eventsActor, futureOnly,
       settings, savingSettings, testing, searchKw, searching, searchResults,
-      doSearch, addActor, toggleActor, delActor, runNow, saveSettings, testNotify, simulateNotify, channelLabel,
-      calUrl, copyCal, exportConfig, importConfig, importing, manualId, manualName, addManual,
+      doSearch, addActor, toggleActor, delActor, runNow, saveSettings, testNotify, simulateNotify, channelLabel, loadLogs,
+      calUrl, copyCal, exportConfig, importConfig, importing, manualId, manualName, addManual, fillUA,
+      settingsDirty, selectTab,
       favoritesUser, importingFavorites, favoritesResult, favoritesError, importFavorites,
       eventsLoading, eventsError, refreshEvents, eventView, calendarContent, today, calendarMonth, selectedDate,
       visibleEvents, calendarDays, monthEventCount, undatedEvents, selectedEvents, nearestDate,

@@ -1,10 +1,18 @@
+name: eventernote-watcher
+
 services:
   eventernote-watcher:
-    build: .
+    build:
+      context: .
+      # 构建时也用宿主网络: 修复容器内 pip/apt 的 DNS(name resolution) 失败
+      network: host
+    # 固定镜像 tag: 每次构建覆盖同名镜像, 旧镜像变为 dangling 可直接 prune
+    image: eventernote-watcher:latest
     container_name: eventernote-watcher
     restart: unless-stopped
-    ports:
-      - "8000:8000"
+    # 用宿主网络: 绕开 Docker NAT 导致的容器内 UDP/DNS 出网失败
+    # (宿主机 DNS 正常但容器解析失败时使用); 本项目单服务, host 模式足够安全
+    network_mode: host
     volumes:
       - ./data:/data
     environment:
